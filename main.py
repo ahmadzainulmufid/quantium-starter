@@ -6,6 +6,10 @@ all_files = glob.glob("data/*.csv")
 df_list = [pd.read_csv(file) for file in all_files]
 df = pd.concat(df_list, ignore_index=True)
 
+df['product'] = df['product'].str.lower().str.strip()
+df['price'] = df['price'].str.replace('$', '').astype(float)
+df['quantity'] = df['quantity'].astype(int)
+
 #filtering data untuk produk 'Pink Morsel'
 df = df[df['product'] == 'pink morsel']
 
