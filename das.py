@@ -1,72 +1,99 @@
-from dash import Dash, Input, Output, html, dcc
-import plotly.express as px
-import pandas as pd
+import pandas
+from dash import Dash, html, dcc, Input, Output
 
-app = Dash()
+from plotly.express import line
 
-df = pd.read_csv('formated_output.csv')
-df['date'] = pd.to_datetime(df['date'], errors='coerce', format='%Y-%m-%d')
-df['region'] = df['region'].str.strip().str.lower()
-df = df.sort_values(by='date')
+# the path to the formatted data file
+DATA_PATH = "./formated_data.csv"
+COLORS = {
+    "primary": "#FEDBFF",
+    "secondary": "#D598EB",
+    "font": "#522A61"
+}
 
-regions = {'north', 'south', 'east', 'west'}
+# load in data
+data = pandas.read_csv(DATA_PATH)
+data = data.sort_values(by="date")
 
-app.layout = html.Div(style={'backgroundColor': '#f9f9f9', 'fontFamily': 'Arial'}, children=[
-    html.H1("Pink Morsel Sales Visualiser", style={
-        'textAlign': 'center',
-        'color': '#2c3e50',
-        'padding': '20px'
-    }),
+# initialize dash
+dash_app = Dash(__name__)
 
-    html.Div([
-        html.Label('Select Region:', style={'margin-right': '15px', 'fontWeight': 'bold'}),
-        dcc.RadioItems(
-            id='region-selector',
-            options=[{'label': region.capitalize(), 'value': region} for region in regions],
-            value='all',
-            inline=True,
-            style={'padding': '10px'}
-        )
-    ], style={'textAlign': 'center'}),
 
-    dcc.Graph(id='sales-line-chart')
-])
+# create the visualization
+def generate_figure(chart_data):
+    line_chart = line(chart_data, x="date", y="sales", title="Pink Morsel Sales")
+    line_chart.update_layout(
+        plot_bgcolor=COLORS["secondary"],
+        paper_bgcolor=COLORS["primary"],
+        font_color=COLORS["font"]
+    )
+    return line_chart
 
-@app.callback(
-    Output('sales-line-chart', 'figure'),
-    Input('region-selector', 'value')
+
+visualization = dcc.Graph(
+    id="visualization",
+    figure=generate_figure(data)
 )
 
-def update_chart(selected_region):
-    filtered_df = df.copy()
-    if selected_region != 'all':
-        filtered_df = filtered_df[filtered_df['region'] == selected_region]
+# create the header
+header = html.H1(
+    "Pink Morsel Visualizer",
+    id="header",
+    style={
+        "background-color": COLORS["secondary"],
+        "color": COLORS["font"],
+        "border-radius": "20px"
+    }
+)
 
-    fig = px.line(
-        filtered_df,
-        x='date',
-        y='sales',
-        title=f"Pink Morsel Sales Over Time ({selected_region.capitalize()})",
-        labels={'date': 'Date', 'sales': 'Sales ($)'}
-    )
+# region picker
+region_picker = dcc.RadioItems(
+    ["north", "east", "south", "west", "all"],
+    "north",
+    id="region_picker",
+    inline=True
+)
+region_picker_wrapper = html.Div(
+    [
+        region_picker
+    ],
+    style={
+        "font-size": "150%"
+    }
+)
 
-    # Tambah garis vertikal dan anotasi
-    fig.add_shape(
-        type='line',
-        x0='2021-01-15', x1='2021-01-15',
-        y0=0, y1=filtered_df['sales'].max(),
-        line=dict(color='red', dash='dash'),
-    )
-    fig.add_annotation(
-        x='2021-01-15',
-        y=filtered_df['sales'].max(),
-        text='Price Increase',
-        showarrow=False,
-        yanchor='bottom',
-        font=dict(color='red')
-    )
 
-    return fig
+# define the region picker callback
+@dash_app.callback(
+    Output(visualization, "figure"),
+    Input(region_picker, "value")
+)
+def update_graph(region):
+    # filter the dataset
+    if region == "all":
+        trimmed_data = data
+    else:
+        trimmed_data = data[data["region"] == region]
 
+    # generate a new line chart with the filtered data
+    figure = generate_figure(trimmed_data)
+    return figure
+
+
+# define the app layout
+dash_app.layout = html.Div(
+    [
+        header,
+        visualization,
+        region_picker_wrapper
+    ],
+    style={
+        "textAlign": "center",
+        "background-color": COLORS["primary"],
+        "border-radius": "20px"
+    }
+)
+
+# this is only true if the module is executed as the program entrypoint
 if __name__ == '__main__':
-    app.run(debug=True)
+    dash_app.run()
